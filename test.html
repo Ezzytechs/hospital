@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Socket.IO Chat Tester + File Upload</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f6f9; margin: 0; padding: 0; color: #333; }
+    .container { max-width: 900px; margin: auto; padding: 20px; }
+    h1 { text-align: center; color: #222; margin-bottom: 20px; }
+    .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    label { font-weight: bold; font-size: 14px; display: block; margin-top: 10px; }
+    input, button { padding: 10px; margin-top: 6px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; }
+    input { width: calc(100% - 22px); }
+    button { background: #4CAF50; color: white; border: none; cursor: pointer; transition: background 0.2s ease-in-out; }
+    button:hover { background: #45a049; }
+    #status { margin: 10px 0; font-weight: bold; text-align: center; }
+    .messages { background: #fafafa; padding: 10px; border-radius: 8px; height: 220px; overflow-y: auto; font-family: monospace; font-size: 13px; border: 1px solid #eee; }
+    #log { background: #111; color: #0f0; padding: 10px; height: 200px; overflow-y: auto; border-radius: 8px; font-family: monospace; font-size: 13px; white-space: pre-wrap; word-wrap: break-word; }
+    .file-preview { margin-top: 10px; }
+    .file-preview a { color: #007BFF; text-decoration: none; }
+    .file-preview a:hover { text-decoration: underline; }
+    .msg-item { margin-bottom: 8px; }
+    .msg-item strong { color: #4CAF50; }
+    img, video { max-width: 200px; border-radius: 6px; margin-top: 5px; }
+    audio { margin-top: 5px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Socket.IO Chat Tester + File Upload</h1>
+
+    <!-- Connection -->
+    <div class="card">
+      <label for="token">JWT Token:</label>
+      <input type="text" id="token" placeholder="Paste JWT token here" />
+      <button id="connectBtn">Connect</button>
+      <div id="status">Not connected</div>
+      <div id="userId"></div>
+    </div>
+
+    <!-- Private chat -->
+    <div class="card">
+      <h2>Private Chat</h2>
+      <label for="recipient">Recipient User ID:</label>
+      <input type="text" id="recipient" placeholder="Enter userId" />
+      <label for="message">Message:</label>
+      <input type="text" id="message" placeholder="Enter message" />
+      <button id="sendPrivate">Send Private</button>
+      <button id="typingPrivate">Send Typing Event</button>
+      <div id="privateMessages" class="messages"></div>
+    </div>
+
+    <!-- Rooms -->
+    <div class="card">
+      <h2>Rooms</h2>
+      <label for="joinRoomName">Room ID:</label>
+      <input type="text" id="joinRoomName" placeholder="Enter room id" />
+      <button id="joinRoomBtn">Join Room</button>
+
+      <label for="roomMessage">Message:</label>
+      <input type="text" id="roomMessage" placeholder="Message for room" />
+      <button id="sendRoom">Send Room Message</button>
+      <button id="typingRoom">Send Typing Event</button>
+      <div id="roomMessages" class="messages"></div>
+    </div>
+
+    <!-- File Upload -->
+    <div class="card">
+      <h2>File Upload</h2>
+      <input type="file" id="fileInput" />
+      <button id="uploadFileBtn">Upload File</button>
+      <div id="fileResult" class="file-preview"></div>
+    </div>
+
+    <!-- Logs -->
+    <div class="card">
+      <h2>Logs</h2>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <!-- Socket.IO client -->
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script>
+    let socket;
+    let myUserId = null;
+
+    const logBox = document.getElementById("log");
+    const privateBox = document.getElementById("privateMessages");
+    const roomBox = document.getElementById("roomMessages");
+
+    function log(msg) {
+      logBox.textContent += msg + "\n";
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    function renderMessage(container, chat) {
+      const div = document.createElement("div");
+      div.className = "msg-item";
+      const label = chat.sender === myUserId ? "You" : chat.sender;
+
+      let content = `<strong>${label}:</strong> `;
+      if (chat.fileUrl) {
+        if (chat.fileType === "image") {
+          content += `<br/><img src="${chat.fileUrl}" alt="image" />`;
+        } else if (chat.fileType === "video") {
+          content += `<br/><video src="${chat.fileUrl}" controls></video>`;
+        } else if (chat.fileType === "audio") {
+          content += `<br/><audio src="${chat.fileUrl}" controls></audio>`;
+        } else if (chat.fileType === "document") {
+          content += `<br/><a href="${chat.fileUrl}" target="_blank">📄 View Document</a>`;
+        } else {
+          content += `<br/><a href="${chat.fileUrl}" target="_blank">📎 Download File</a>`;
+        }
+      } else {
+        content += chat.message;
+      }
+
+      div.innerHTML = content;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    // Connect
+    document.getElementById("connectBtn").onclick = () => {
+      const token = document.getElementById("token").value.trim();
+      if (!token) return alert("Enter a JWT token!");
+
+      socket = io("http://localhost:3000", { auth: { token } });
+
+      socket.on("connect", () => {
+        document.getElementById("status").innerText = "✅ Connected";
+        log("Connected: " + socket.id);
+        socket.emit("whoami");
+      });
+
+      socket.on("disconnect", (reason) => {
+        document.getElementById("status").innerText = "❌ Disconnected: " + reason;
+        log("Disconnected: " + reason);
+      });
+
+      socket.on("whoami", (user) => {
+        myUserId = user.id;
+        document.getElementById("userId").innerText = "Your ID: " + myUserId;
+        log("You are " + JSON.stringify(user));
+      });
+
+      socket.on("userOnline", (data) => log("🟢 User online: " + JSON.stringify(data)));
+      socket.on("userOffline", (data) => log("🔴 User offline: " + JSON.stringify(data)));
+
+      socket.on("privateMessage", (chat) => renderMessage(privateBox, chat));
+      socket.on("roomMessage", (chat) => renderMessage(roomBox, chat));
+      socket.on("typing", (data) => log("✍️ Typing: " + JSON.stringify(data)));
+      socket.on("messageStatus", (data) => log("📨 Message status: " + JSON.stringify(data)));
+      socket.on("newMessage", (chat) => {
+        if (chat.room) {
+          renderMessage(roomBox, chat);
+        } else {
+          renderMessage(privateBox, chat);
+        }
+      });
+    };
+
+    // Private
+    document.getElementById("sendPrivate").onclick = () => {
+      const to = document.getElementById("recipient").value.trim();
+      const message = document.getElementById("message").value.trim();
+      if (!socket) return alert("Connect first!");
+      if (!to || !message) return alert("Enter recipient & message!");
+      socket.emit("privateMessage", { to, message });
+      renderMessage(privateBox, { sender: myUserId, message });
+    };
+
+    // Typing (private)
+    document.getElementById("typingPrivate").onclick = () => {
+      const to = document.getElementById("recipient").value.trim();
+      if (!socket) return alert("Connect first!");
+      if (!to) return alert("Enter recipient!");
+      socket.emit("typing", { type: "private", to });
+    };
+
+    // Join room
+    document.getElementById("joinRoomBtn").onclick = () => {
+      const room = document.getElementById("joinRoomName").value.trim();
+      if (!room) return alert("Enter a room!");
+      socket.emit("joinRoom", room, (ack) => {
+        if (ack?.ok) log("✅ Joined room: " + room);
+        else log("❌ Failed to join: " + (ack?.error || "unknown"));
+      });
+    };
+
+    // Send room
+    document.getElementById("sendRoom").onclick = () => {
+      const room = document.getElementById("joinRoomName").value.trim();
+      const message = document.getElementById("roomMessage").value.trim();
+      if (!socket) return alert("Connect first!");
+      if (!room || !message) return alert("Enter room & message!");
+      socket.emit("roomMessage", { room, message });
+      renderMessage(roomBox, { sender: myUserId, room, message });
+    };
+
+    // Typing (room)
+    document.getElementById("typingRoom").onclick = () => {
+      const room = document.getElementById("joinRoomName").value.trim();
+      if (!socket) return alert("Connect first!");
+      if (!room) return alert("Enter room!");
+      socket.emit("typing", { type: "room", room });
+    };
+
+    // File upload
+    document.getElementById("uploadFileBtn").onclick = async () => {
+      const token = document.getElementById("token").value.trim();
+      const fileInput = document.getElementById("fileInput");
+      if (!fileInput.files.length) return alert("Pick a file first!");
+      if (!token) return alert("Enter JWT token!");
+
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+      formData.append("senderId", myUserId);
+      formData.append("type", "room"); // or "private"
+      formData.append("roomId", document.getElementById("joinRoomName").value.trim());
+
+      try {
+        const res = await fetch("http://localhost:3000/api/v1/tenant/files/upload", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Upload failed");
+
+        log("📁 File uploaded & sent as message");
+        // also show instantly to sender
+        renderMessage(roomBox, data.chat);
+      } catch (err) {
+        log("❌ File upload error: " + err.message);
+      }
+    };
+  </script>
+</body>
+</html>

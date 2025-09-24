@@ -1,0 +1,46 @@
+tenant
+****************req.user -current user
+  const payload = {
+      userId: user._id,
+      username: user.username,
+      subdomain,
+      email: user.email,
+    };
+
+****************req.tenant -current hospital
+  req.tenant = {
+      tenantId: subscription.tenant?._id,
+      dbUri: subscription.tenant?.dbUri,
+      name: subscription.tenant?.name,
+    };
+
+***********req.db -models 
+registed models
+//nodemailer pass
+
+
+***Add pagination to lists
+***upload + download for files
+***Test room crud and other operations
+
+emailObserver.emit("SEND_MAIL", {
+  to: "user@example.com",
+  subject: "Welcome 🎉",
+  templateFunc:  ,
+  templateData: { name: "James" },
+});
+
+
+emailObserver.emit("SEND_MAIL", {
+  to: "user@example.com",
+  subject: "📢 Team Meeting",
+  templateFunc:,
+  templateData: { name: "James" },
+  eventDetails: {
+    startTime: "2025-09-15T14:00:00Z",
+    endTime: "2025-09-15T15:00:00Z",
+    title: "Team Meeting",
+    description: "Discuss project progress and next steps.",
+    location: "Zoom link: https://zoom.us/j/xxxxxxx",
+  },
+});
