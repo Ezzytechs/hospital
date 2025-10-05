@@ -24,9 +24,14 @@ async function provisionTenant({
   await meta.save();
 
   try {
-    const dbBaseUri=process.env.MONGO_URI_TEMPLATE
+   const templateUri = process.env.MONGO_URI_TEMPLATE;
+    const mongoUri = templateUri.replace(
+      "{DB_NAME}",
+      subscription.tenant.dbName
+    );
+
     // 2) get User model from registry
-    const { User } = await getTenantModels(dbBaseUri+dbName);
+    const { User } = await getTenantModels(mongoUri);
 
     // 3) create admin user with random password
     const adminPassword = "default";

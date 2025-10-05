@@ -9,10 +9,12 @@ async function tenantAuthMiddleware(req, res, next) {
 
     const tenant = await Tenant.findOne({ subdomain });
     if (!tenant) return res.status(404).json({ error: "Hospital not found" });
+
     // Connect to tenant DB regardless of subscription
-    const conn = await getTenantModels(
-      process.env.MONGO_URI_TEMPLATE + tenant.dbName
-    );
+    const templateUri = process.env.MONGO_URI_TEMPLATE;
+    const mongoUri = templateUri.replace("{DB_NAME}", tenant.dbName);
+    // ✅ Subscription active → load tenant models
+    const conn = await getTenantModels(mongoUri);
 
     req.db = conn; //attach models
     req.tenant = tenant; // attach hospital info for subscription endpoints

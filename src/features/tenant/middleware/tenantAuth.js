@@ -40,15 +40,21 @@ async function tenantAuth(req, res, next) {
       });
     }
 
+    const templateUri = process.env.MONGO_URI_TEMPLATE;
+    const mongoUri = templateUri.replace(
+      "{DB_NAME}",
+      subscription.tenant.dbName
+    );
+
     // ✅ Subscription active → load tenant models
-    const conn = await getTenantModels(process.env.MONGO_URI_TEMPLATE+subscription.tenant.dbName);
+    const conn = await getTenantModels(mongoUri);
 
     req.db = conn;
     req.tenant = {
       tenantId: subscription.tenant?._id,
       dbName: subscription.dbName || subscription.tenant?.dbName,
       name: subscription.tenant?.name,
-    }; 
+    };
 
     next();
   } catch (err) {
