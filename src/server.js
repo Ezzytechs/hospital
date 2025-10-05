@@ -25,8 +25,8 @@ const registerSocket = require("./features/tenant/app/chat/chat");
     registerSocket(io);
 
     // 5. Start server
-    server.listen(PORT, "0.0.0.0", () => {
-      console.log(`✅ Server running on http://0.0.0.0:${PORT}`);
+    server.listen(PORT, () => {
+      console.log(`✅ Server running on ${PORT}`);
     });
   } catch (err) {
     console.error("❌ Failed to start server:", err);
